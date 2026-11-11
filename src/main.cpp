@@ -5,8 +5,10 @@
 #include <Preferences.h>
 #include <driver/twai.h>
 #include <math.h>
+#include <esp_wifi.h>
 #include "forza_packet.h"
 #include "dashboard_protocol.h"
+#include "game_mapping.h"
 
 // KZ110独立台架实测：500k，标准帧，GPIO21 TX / GPIO22 RX。
 // 此配置不发送原项目的扩展帧，不修改仪表配置或速度显示上限。
@@ -38,6 +40,14 @@ String wifiSsid, wifiPassword;
 String deviceId;
 bool wifiEnabled = false;
 float powerFullScale = 100000;
+uint8_t speedDivisor = 1;
+bool usbInputMode = false;
+uint32_t usbGamePackets = 0, ignoredGamePackets = 0;
+float gameSpeed = 0, gameRpm = 0;
+volatile bool udpNeedsBind = false, scanFinished = false;
+bool scanRunning = false;
+uint32_t scanStartedMs = 0, udpBoundIp = 0;
+int scanStartError = ESP_OK;
 
 void connectWifi() {
     WiFi.mode(WIFI_STA);
@@ -62,24 +72,43 @@ void setTarget(uint16_t nextSpeed, uint16_t nextPower, uint8_t nextGear) {
     active = true;
 }
 
-void receiveGame(const uint8_t *packet, size_t length) {
-    ForzaSample sample;
-    if (!decodeHorizon324(packet, length, sample)) { invalidGamePackets++; return; }
+void applyGame(const ForzaSample &sample, bool fromUsb) {
     gamePackets++;
+    if (fromUsb) usbGamePackets++;
     gameTimestamp = sample.timestampMs;
     gameGear = sample.gameGear;
-    // Game transmission gear is telemetry only; E/C/F/A are dashboard drive modes.
-    const float speed = fminf(sample.speedKmh, 200.0f);
-    const float power = fmaxf(0, fminf(100, sample.powerWatts * 100.0f / powerFullScale));
-    setTarget(sample.racing ? lroundf(speed * 16) : 0, sample.racing ? lroundf(power * 4) : 0, gear);
-    inputSource = sample.racing ? "forza-324" : "forza-paused";
-    if (!sample.racing) { active = false; awaitingFeedback = false; feedbackDelayUs = -1; }
+    gameSpeed = sample.speedKmh;
+    gameRpm = sample.rpm;
+    if (sample.racing) {
+        setTarget(lroundf(dashboardSpeed(sample.speedKmh, speedDivisor) * 16),
+                  lroundf(dashboardPower(sample.rpm) * 4), dashboardGear(sample.gameGear));
+    } else {
+        if (active || speedRaw || powerRaw) setTarget(0, 0, dashboardGear(sample.gameGear));
+        active = false; awaitingFeedback = false; feedbackDelayUs = -1;
+    }
+    inputSource = fromUsb ? (sample.racing ? "usb-game" : "usb-game-paused")
+                          : (sample.racing ? "forza-324" : "forza-paused");
+}
+
+void receiveGame(const uint8_t *packet, size_t length) {
+    if (usbInputMode) { ignoredGamePackets++; return; }
+    ForzaSample sample;
+    if (!decodeHorizon324(packet, length, sample)) { invalidGamePackets++; return; }
+    applyGame(sample, false);
 }
 
 void fillStatus(JsonDocument &doc) {
     doc["profile"] = "ninebot-kz110-v1";
     doc["product"] = "ForzaDash";
-    doc["firmware_version"] = "0.1.0";
+    doc["firmware_version"] = "0.2.0";
+    doc["mapping_profile"] = "rpm8000-gears-v1";
+    doc["speed_divisor"] = speedDivisor;
+    doc["rpm_full_scale"] = RPM_FULL_SCALE;
+    doc["input_mode"] = usbInputMode ? "usb" : "wifi";
+    doc["game_speed_kmh"] = gameSpeed;
+    doc["game_rpm"] = gameRpm;
+    doc["usb_game_packets"] = usbGamePackets;
+    doc["ignored_game_packets"] = ignoredGamePackets;
     doc["device_id"] = deviceId;
     doc["input_source"] = inputSource;
     doc["game_packets"] = gamePackets;
@@ -135,9 +164,55 @@ String command(const char *data, size_t length, bool privileged = false) {
     } else {
         reply["seq"] = input["seq"].as<uint32_t>();
         const char *cmd = input["cmd"] | "set";
-        bool configCommand = !strncmp(cmd, "wifi_", 5) || !strcmp(cmd, "power_scale");
+        bool configCommand = !strncmp(cmd, "wifi_", 5) || !strcmp(cmd, "power_scale") || !strcmp(cmd, "mapping_config");
         if (configCommand && !privileged) {
             reply["error"] = "configuration requires USB serial";
+        } else if (!strcmp(cmd, "mapping_config")) {
+            int divisor = input["speed_divisor"] | int(speedDivisor);
+            const char *mode = input["input_mode"] | (usbInputMode ? "usb" : "wifi");
+            if ((divisor != 1 && divisor != 10) || (strcmp(mode, "usb") && strcmp(mode, "wifi"))) {
+                reply["error"] = "speed_divisor:1/10; input_mode:usb/wifi";
+            } else {
+                speedDivisor = divisor;
+                usbInputMode = !strcmp(mode, "usb");
+                preferences.putUChar("speed_div", speedDivisor);
+                preferences.putBool("usb_mode", usbInputMode);
+                reply["ok"] = true;
+            }
+        } else if (!strcmp(cmd, "wifi_scan")) {
+            if (!scanRunning) {
+                WiFi.scanDelete();
+                // The bundled Arduino scan helper leaves home_chan_dwell_time
+                // uninitialized. Use a zeroed SDK config and its normal scan-done handler.
+                wifi_scan_config_t config = {};
+                config.show_hidden = true;
+                config.scan_type = WIFI_SCAN_TYPE_ACTIVE;
+                config.scan_time.active.min = 100;
+                config.scan_time.active.max = 120;
+                config.home_chan_dwell_time = 40;
+                scanFinished = false;
+                scanStartError = esp_wifi_scan_start(&config, false);
+                scanRunning = scanStartError == ESP_OK;
+                scanStartedMs = millis();
+            }
+            reply["scan_running"] = scanRunning;
+            reply["ok"] = scanRunning;
+            if (!scanRunning) reply["error"] = "Device scan unavailable; retry after Wi-Fi connects or enter SSID manually";
+        } else if (!strcmp(cmd, "wifi_scan_status")) {
+            int count = WiFi.scanComplete();
+            reply["scan_running"] = scanRunning;
+            reply["scan_failed"] = !scanRunning && (count < 0 || scanStartError != ESP_OK);
+            JsonArray networks = reply["networks"].to<JsonArray>();
+            for (int i = 0; i < count && i < 30; ++i) {
+                String name = WiFi.SSID(i);
+                if (!name.length()) continue;
+                JsonObject network = networks.add<JsonObject>();
+                network["ssid"] = name;
+                network["rssi"] = WiFi.RSSI(i);
+                network["channel"] = WiFi.channel(i);
+                network["band"] = "2.4 GHz";
+            }
+            reply["ok"] = true;
         } else if (!strcmp(cmd, "wifi_config")) {
             const char *ssid = input["ssid"] | "";
             const char *password = input["password"] | "";
@@ -164,6 +239,19 @@ String command(const char *data, size_t length, bool privileged = false) {
             double watts = input["watts"].is<double>() ? input["watts"].as<double>() : NAN;
             if (!isfinite(watts) || watts < 1000 || watts > 2000000) reply["error"] = "watts:1000..2000000 required";
             else { powerFullScale = watts; preferences.putFloat("power_scale", powerFullScale); reply["ok"] = true; }
+        } else if (!strcmp(cmd, "game")) {
+            double speed = input["speed_kmh"].is<double>() ? input["speed_kmh"].as<double>() : NAN;
+            double rpm = input["rpm"].is<double>() ? input["rpm"].as<double>() : NAN;
+            bool validGear = input["game_gear"].is<uint8_t>();
+            uint8_t gameGearValue = input["game_gear"] | uint8_t(0);
+            if (!privileged || !usbInputMode) reply["error"] = "USB game input requires serial and usb input_mode";
+            else if (!isfinite(speed) || speed < 0 || speed > MAX_SPEED_KMH || !isfinite(rpm) || rpm < 0 || rpm > 50000 || !validGear || gameGearValue > 20) {
+                reply["error"] = "speed_kmh:0..500; rpm:0..50000; game_gear:0..20 required";
+            } else {
+                ForzaSample sample = {input["racing"] | true, input["timestamp_ms"] | uint32_t(0), float(speed), 0, float(rpm), gameGearValue, 0};
+                applyGame(sample, true);
+                reply["ok"] = true;
+            }
         } else if (!strcmp(cmd, "status")) {
             reply["ok"] = true;
         } else if (!strcmp(cmd, "stop")) {
@@ -191,8 +279,8 @@ String command(const char *data, size_t length, bool privileged = false) {
             double power = input["power_pct"].is<double>() ? input["power_pct"].as<double>() : NAN;
             const char *g = input["gear"] | "E";
             int nextGear = !strcmp(g,"E") ? 0 : !strcmp(g,"C") ? 1 : !strcmp(g,"F") ? 2 : !strcmp(g,"A") ? 3 : -1;
-            if (!isfinite(speed) || speed < 0 || speed > 200 || !isfinite(power) || power < 0 || power > 100 || nextGear < 0) {
-                reply["error"] = "speed_kmh:0..200, power_pct:0..100, gear:E/C/F/A required";
+            if (!isfinite(speed) || speed < 0 || speed > MAX_SPEED_KMH || !isfinite(power) || power < 0 || power > 100 || nextGear < 0) {
+                reply["error"] = "speed_kmh:0..500, power_pct:0..100, gear:E/C/F/A required";
             } else {
                 setTarget(lround(speed * 16), lround(power * 4), nextGear);
                 inputSource = "manual";
@@ -202,7 +290,15 @@ String command(const char *data, size_t length, bool privileged = false) {
             reply["error"] = "unknown cmd";
         }
     }
-    fillStatus(reply);
+    if ((input["brief"] | false) && !strcmp(input["cmd"] | "", "game") && reply["ok"].as<bool>()) {
+        reply["product"] = "ForzaDash";
+        reply["profile"] = "ninebot-kz110-v1";
+        reply["device_id"] = deviceId;
+        reply["speed_kmh"] = speedRaw / 16.0;
+        reply["power_pct"] = powerRaw / 4.0;
+        const char *modes[] = {"E", "C", "F", "A"};
+        reply["gear"] = modes[gear];
+    } else fillStatus(reply);
     String result;
     serializeJson(reply, result);
     return result;
@@ -275,19 +371,35 @@ void setup() {
     twai_filter_config_t filter = TWAI_FILTER_CONFIG_ACCEPT_ALL();
     canReady = twai_driver_install(&general, &timing, &filter) == ESP_OK && twai_start() == ESP_OK;
     preferences.begin("forza-dash", false);
+    speedDivisor = preferences.getUChar("speed_div", 1);
+    if (speedDivisor != 1 && speedDivisor != 10) speedDivisor = 1;
+    usbInputMode = preferences.getBool("usb_mode", false);
     wifiSsid = preferences.getString("ssid", "");
     wifiPassword = preferences.getString("password", "");
     powerFullScale = preferences.getFloat("power_scale", 100000);
     if (!isfinite(powerFullScale) || powerFullScale < 1000 || powerFullScale > 2000000) powerFullScale = 100000;
     WiFi.mode(WIFI_STA);
+    WiFi.onEvent([](WiFiEvent_t event) {
+        if (event == ARDUINO_EVENT_WIFI_STA_GOT_IP) udpNeedsBind = true;
+        if (event == ARDUINO_EVENT_WIFI_SCAN_DONE) scanFinished = true;
+    });
     deviceId = WiFi.macAddress();
     if (wifiSsid.length()) connectWifi();
-    udp.begin(UDP_PORT);
-    Serial.println("{\"event\":\"ready\",\"product\":\"ForzaDash\",\"firmware_version\":\"0.1.0\"}");
+    Serial.println("{\"event\":\"ready\",\"product\":\"ForzaDash\",\"firmware_version\":\"0.2.0\"}");
 }
 
 void loop() {
     tickCan();
+    if (scanRunning && (scanFinished || millis() - scanStartedMs > 8000)) {
+        scanRunning = false;
+        if (!scanFinished) scanStartError = ESP_ERR_TIMEOUT;
+    }
+    const uint32_t ip = WiFi.status() == WL_CONNECTED ? uint32_t(WiFi.localIP()) : 0;
+    if (udpNeedsBind || ip != udpBoundIp) {
+        udpNeedsBind = false;
+        udp.stop();
+        udpBoundIp = ip && udp.begin(UDP_PORT) ? ip : 0;
+    }
     // Bound parsing work to keep the 100ms CAN scheduler responsive.
     for (int n = 0; n < 256 && Serial.available(); ++n) {
         char c = Serial.read();
