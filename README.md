@@ -1,5 +1,7 @@
 # ForzaDash
 
+[![desktop: Windows x64](https://img.shields.io/badge/desktop-Windows%20x64-blue)](#下载与使用) [![firmware: ESP32](https://img.shields.io/badge/firmware-ESP32-blue)](#硬件与构建) [![firmware license: MIT](https://img.shields.io/badge/firmware%20license-MIT-green)](LICENSE)
+
 [下载电脑软件与 ESP32 固件（Latest）](https://github.com/xmz28/ForzaDash/releases/latest) · [安装与升级](docs/INSTALL.md) · [版本记录](CHANGELOG.md)
 
 把 Forza 游戏遥测显示到九号五寸仪表：Windows 软件通过 Wi-Fi 绘制并投送仪表画面，也可通过 ESP32 输出 CAN，让原生速度、功率和挡位跟随游戏。
@@ -12,8 +14,8 @@
 
 | 文件 | 用途 |
 | --- | --- |
-| `ForzaDash-v0.5.0-lite-windows-x64.zip` | Windows 便携软件，解压运行 `ForzaDash-lite.exe` |
-| `ForzaDash-esp32-v0.2.0.zip` | ESP32 完整烧录包与保留配置的升级文件 |
+| [ForzaDash-v0.5.0-lite-windows-x64.zip](https://github.com/xmz28/ForzaDash/releases/download/v0.5.0/ForzaDash-v0.5.0-lite-windows-x64.zip) | Windows 便携软件，解压运行 `ForzaDash-lite.exe` |
+| [ForzaDash-esp32-v0.2.0.zip](https://github.com/xmz28/ForzaDash/releases/download/v0.5.0/ForzaDash-esp32-v0.2.0.zip) | ESP32 完整烧录包与保留配置的升级文件 |
 | `SHA256SUMS.txt` | 发布附件校验值 |
 | `SOURCE.txt` | 固件源码提交和电脑软件版本对应关系 |
 
