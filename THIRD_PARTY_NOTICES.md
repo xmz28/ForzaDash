@@ -15,7 +15,7 @@
 
 ## Windows 软件
 
-电脑程序暂只发布可执行包，不适用本仓库原创固件的 MIT 授权；允许下载、运行和原样分享完整发布包，保留随包说明及第三方许可证。该说明不限制第三方组件自身授予的权利。
+Windows 源码在 [ForzaDash-Desktop](https://github.com/xmz28/ForzaDash-Desktop) 独立公开，适用该仓库的 [MIT 许可证](https://github.com/xmz28/ForzaDash-Desktop/blob/main/LICENSE)。既有便携包保留随包说明和第三方许可；桌面源码依赖及分发说明见[桌面端第三方声明](https://github.com/xmz28/ForzaDash-Desktop/blob/main/THIRD_PARTY_NOTICES.md)。
 
 精简版使用 Python、Tcl/Tk、CustomTkinter、darkdetect、packaging、pyserial、Pillow，以及 PyInstaller 运行时；相关许可随 Windows ZIP 的 `licenses` 目录提供。系统 H.264 编码使用 Windows Media Foundation，不随包携带 FFmpeg、x264、x265、NumPy 或系统字体。PyInstaller 使用其原有许可及运行时分发例外。
 
@@ -23,7 +23,7 @@
 
 - 游戏字段格式参考 [Forza 官方 Data Out 文档](https://support.forza.net/hc/en-us/articles/51744149102611-Forza-Horizon-6-Data-Out-Documentation)。
 - 配网流程参考 [SlimeVR Quick Setup](https://docs.slimevr.dev/quick-setup)。
-- 九号仪表私有视频报文布局参考维护者本地 `ninebot_pro` 项目 `NinebotProtocol.java`；本仓库不包含该 Android 工程或电脑端协议实现源码。
+- 九号仪表投屏发送端根据报文格式独立实现，实现在桌面端仓库；报文参考来源见桌面端第三方声明。
 - Windows 系统编码接口参考 [Microsoft H.264 Video Encoder](https://learn.microsoft.com/en-us/windows/win32/medfound/h-264-video-encoder)。
 
 Forza、九号及相关商标属于各自权利人。本项目是独立实验项目。

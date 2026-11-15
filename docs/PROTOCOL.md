@@ -51,4 +51,4 @@ SSID为1..32 UTF-8字节；密码为空或8..63字节。disconnect保留配置�
 
 ## 验证与发布
 
-详见[验证记录](VALIDATION.md)。固件源码MIT授权，桌面项目单独管理。代码不含雅迪协议或旧项目的个人Wi-Fi信息，现场记录与构建产物不纳入源码历史。发布二进制使用Release附件。
+详见[验证记录](VALIDATION.md)。固件源码采用 MIT 许可证，Windows 实现及原理见 [ForzaDash-Desktop](https://github.com/xmz28/ForzaDash-Desktop)。电脑程序与固件烧录包从 [Latest Release](https://github.com/xmz28/ForzaDash/releases/latest) 下载。

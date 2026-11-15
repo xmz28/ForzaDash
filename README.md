@@ -2,7 +2,7 @@
 
 [![desktop: Windows x64](https://img.shields.io/badge/desktop-Windows%20x64-blue)](#下载与使用) [![firmware: ESP32](https://img.shields.io/badge/firmware-ESP32-blue)](#硬件与构建) [![firmware license: MIT](https://img.shields.io/badge/firmware%20license-MIT-green)](LICENSE)
 
-[下载电脑软件与 ESP32 固件（Latest）](https://github.com/xmz28/ForzaDash/releases/latest) · [安装与升级](docs/INSTALL.md) · [版本记录](CHANGELOG.md)
+[下载电脑软件与 ESP32 固件（Latest）](https://github.com/xmz28/ForzaDash/releases/latest) · [Windows 源码](https://github.com/xmz28/ForzaDash-Desktop) · [安装与升级](docs/INSTALL.md) · [版本记录](CHANGELOG.md)
 
 把 Forza 游戏遥测显示到九号五寸仪表：Windows 软件通过 Wi-Fi 绘制并投送仪表画面，也可通过 ESP32 输出 CAN，让原生速度、功率和挡位跟随游戏。
 
@@ -21,7 +21,9 @@
 
 电脑软件约 13.62 MiB，使用 Windows 自带 Media Foundation H.264 编码器，无需安装 Python、FFmpeg 或额外编码软件。当前验证环境为 Windows 10 x64；缺少系统媒体组件时，投屏编码会报告初始化失败。
 
-本仓库公开 **ESP32 固件源码（MIT）**；电脑软件暂只发布可执行程序，其使用说明和第三方许可证随包提供。固件与电脑软件使用各自的版本号，同一 Release 提供当前配套组合。
+本仓库维护 **ESP32 固件源码**，Windows 源码在 [ForzaDash-Desktop](https://github.com/xmz28/ForzaDash-Desktop) 独立维护，两者均采用 MIT 许可证。电脑端另有[工作原理](https://github.com/xmz28/ForzaDash-Desktop/blob/main/docs/ARCHITECTURE.md)和[构建与测试说明](https://github.com/xmz28/ForzaDash-Desktop/blob/main/docs/BUILD.md)。
+
+固件与电脑软件各自维护版本号。只想安装使用时，从本仓库的 Latest Release 下载所需文件即可；仅使用 Wi-Fi 投屏时，只需下载 Windows 便携包。
 
 ## 三种使用方式
 

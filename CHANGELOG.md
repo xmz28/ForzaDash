@@ -1,10 +1,15 @@
 # 版本记录
 
+## 文档更新 · Windows 源码开放
+
+- Windows 源码已在 [ForzaDash-Desktop](https://github.com/xmz28/ForzaDash-Desktop) 按 MIT 许可证公开。
+- 固件与电脑端继续分别维护源码。原有 Latest Release 仍是固件烧录包和 Windows 便携包的统一下载入口。
+
 ## v0.5.0 · 2026-11-11
 
 首次公开发布：桌面 0.5.0 精简版 + ESP32 固件 0.2.0。
 
-- 公开 ESP32 MIT 源码，Windows 软件只提供便携二进制。
+- 首发公开 ESP32 MIT 源码；Windows 软件在当时只提供便携二进制。
 - Windows 使用系统 Media Foundation 编码，EXE 约 13.62 MiB，不携带 PyAV、FFmpeg 或 NumPy。
 - 提供 Wi-Fi 投屏、USB CAN、纯 Wi-Fi CAN；投屏可以与一种 CAN 输出共享游戏数据。
 - CAN 支持原速 / 十倍缩小、RPM 功率映射、E/C/F 挡位映射、USB 配网及配置持久化。

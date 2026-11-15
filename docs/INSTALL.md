@@ -6,7 +6,7 @@
 
 解压 `ForzaDash-v0.5.0-lite-windows-x64.zip`，运行 `ForzaDash-lite.exe`。保留随包的说明与 `licenses` 目录。无需安装 Python 或第三方编码器；投屏需要 Windows Media Foundation 和可用 Wi-Fi。当前只验证 Windows 10 x64。USB CAN 需要系统正常识别开发板串口。
 
-电脑软件暂不公开源码，固件仓库的 MIT 许可证不涵盖电脑程序本身；第三方组件保留各自许可。Windows 系统字体和媒体组件由系统提供，不随包分发。
+如需自行构建，请到 [ForzaDash-Desktop](https://github.com/xmz28/ForzaDash-Desktop) 获取 MIT 授权的桌面源码，并按[桌面端构建说明](https://github.com/xmz28/ForzaDash-Desktop/blob/main/docs/BUILD.md)操作。第三方组件保留各自许可。Windows 系统字体和媒体组件由系统提供，不随包分发。
 
 ## ESP32 首次安装
 
